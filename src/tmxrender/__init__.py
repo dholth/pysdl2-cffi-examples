@@ -23,7 +23,7 @@ def run():
                               720, # ignored for fs desktop
                               sdl.WINDOW_SHOWN)
 
-    renderer = sdl.Renderer(sdl.createRenderer(window, -1, flags=0))
+    renderer = sdl.createRenderer(window, -1, flags=0)
 
     window = sdl.Window(window)
     width, height = window.getWindowSize()

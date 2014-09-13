@@ -3,8 +3,7 @@
 import os.path
 import itertools
 import sdl
-
-from pytmx import tmxloader
+import pytmx
 
 def find_color_in_palette(surface, colorkey):
     """
@@ -30,9 +29,8 @@ class TMXRender(object):
         """
         :param filename: the map data
         """
-
         self.filename = filename
-        self.tmx = tmxloader.load_tmx(self.filename)
+        self.tmx = pytmx.TiledMap(self.filename)
 
     def load(self, renderer):
         """Load the graphical data into textures compatible with renderer."""
@@ -140,12 +138,12 @@ class TMXRender(object):
         srcrect = sdl.Rect()
         dstrect = sdl.Rect()
 
-        for layer in range(len(self.tmx.tilelayers)):
+        for layer in self.tmx.visible_tile_layers:
 
             for y in range(y0, (y0 + height // th) + 2):
                 for x in range(x0, (x0 + width // tw) + 2):
-                    image = self.tmx.getTileImage(clamp(x, max_x),
-                                                  clamp(y, max_y), layer)
+                    image = self.tmx.get_tile_image(clamp(x, max_x),
+                                                    clamp(y, max_y), layer)
                     if image == 0: # blank area
                         continue
 
@@ -163,7 +161,7 @@ class TMXRender(object):
         # Object coordinates are in pixels.
         for ob in self.tmx.objects:
             if ob.visible and ob.gid:
-                image = self.tmx.getTileImageByGid(ob.gid)
+                image = self.tmx.get_tile_image_by_gid(ob.gid)
                 # Are object coords the lower left corner?
                 srcrect.x, srcrect.y, srcrect.w, srcrect.h = image
                 dstrect.x = int(ob.x) - origin[0]
