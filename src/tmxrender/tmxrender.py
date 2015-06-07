@@ -5,25 +5,6 @@ import itertools
 import sdl
 import pytmx
 
-def find_color_in_palette(surface, colorkey):
-    """
-    Args:
-        surface: a paletted sdl.Surface()
-        colorkey: a tuple of (r, g, b) to find
-    Return:
-        The index of the color, or -1 if not found.
-    Raises KeyError() if surface.format.BitsPerPixel != 8
-    """
-    if surface.format.BitsPerPixel != 8:
-        raise ValueError("Not a paletted surface")
-    palette = surface.format.palette
-    colors = palette.colors
-    for i in range(palette.ncolors):
-        color = colors[i]
-        if (color.r, color.g, color.b) == colorkey:
-            return i
-    raise KeyError("Color not found in palette")
-
 class TMXRender(object):
     def __init__(self, filename):
         """
@@ -58,7 +39,7 @@ class TMXRender(object):
                 raise Exception(sdl.getError())
             try:
                 if colorkey and surface.format.BitsPerPixel == 8:
-                    i = find_color_in_palette(surface, colorkey)
+                    i = sdl.mapRGB(surface.format, *colorkey)
                     assert sdl.setColorKey(surface, 1, i) == 0
                 ts.image = sdl.createTextureFromSurface(renderer, surface)
             finally:
