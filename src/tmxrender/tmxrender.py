@@ -19,9 +19,6 @@ class TMXRender(object):
         # mainly from pytmx.tmxloader
         tmxdata = self.tmx
 
-        # initialize the array of images
-        tmxdata.images = [0] * tmxdata.maxgid
-
         # convert angles to float:
         for ob in self.tmx.objects:
             ob.rotation = float(ob.rotation)
@@ -46,41 +43,28 @@ class TMXRender(object):
                 sdl.freeSurface(surface)
             rc, format, access, w, h = sdl.queryTexture(ts.image)
 
-            # TODO our PyTMX is patched to allow floats
-
             # margins and spacing
             tilewidth = ts.tilewidth + ts.spacing
             tileheight = ts.tileheight + ts.spacing
             tile_size = ts.tilewidth, ts.tileheight
 
             # some tileset images may be slightly larger than the tile area
-            # ie: may include a banner, copyright, ect.  this compensates for that
-            width = int((((w - ts.margin * 2 + ts.spacing) / tilewidth) * tilewidth) - ts.spacing)
-            height = int((((h - ts.margin * 2 + ts.spacing) / tileheight) * tileheight) - ts.spacing)
+            # ie: may include a banner, copyright, etc. 
+            # this compensates for that
+            width = int((((w - ts.margin * 2 + ts.spacing) / tilewidth) 
+                * tilewidth) - ts.spacing)
+            height = int((((h - ts.margin * 2 + ts.spacing) / tileheight) 
+                * tileheight) - ts.spacing)
 
             # trim off any pixels on the right side that isn't a tile
-            # this happens if extra graphics are included on the left, but they are not actually part of the tileset
+            # this happens if extra graphics are included on the left,
+            # but they are not actually part of the tileset
             width -= (w - ts.margin) % tilewidth
 
             # using product avoids the overhead of nested loops
             p = itertools.product(xrange(ts.margin, height + ts.margin, tileheight),
                                   xrange(ts.margin, width + ts.margin, tilewidth))
 
-            for real_gid, (y, x) in enumerate(p, ts.firstgid):
-                if x + ts.tilewidth-ts.spacing > width:
-                    continue
-
-                gids = tmxdata.map_gid(real_gid)
-
-                if gids:
-                    tile_location = tuple(int(v) for v in
-                                          (x, y, tile_size[0], tile_size[1]))
-
-                    for gid, flags in gids:
-                        # are flags for flipping?
-                        # XXX store source image & location;
-                        # only support one tile image for now.
-                        tmxdata.images[gid] = tile_location
 
     def render(self, renderer, origin):
         """
@@ -119,32 +103,62 @@ class TMXRender(object):
         srcrect = sdl.Rect()
         dstrect = sdl.Rect()
 
+        # get_tile_image now includes path, (x, y, w, h), flags
+
+        NULL = sdl.ffi.NULL
+
+        # map rotate/flip flags to renderCopyEx parameters
+        rotations = {
+            (False, False, False): (0, 0),
+            (True,  False, True): (90, 0),
+            (True,  True,  False): (180, 0),
+            (False, True,  True): (-90, 0),
+            (True,  False, False): (0, sdl.FLIP_HORIZONTAL),
+            (True,  True,  True): (90, sdl.FLIP_HORIZONTAL),
+            (False, True,  False): (180, sdl.FLIP_HORIZONTAL),
+            (False, False, True): (-90, sdl.FLIP_HORIZONTAL),
+        }
+
         for layer in self.tmx.visible_tile_layers:
 
             for y in range(y0, (y0 + height // th) + 2):
                 for x in range(x0, (x0 + width // tw) + 2):
-                    image = self.tmx.get_tile_image(clamp(x, max_x),
-                                                    clamp(y, max_y), layer)
-                    if image == 0: # blank area
+                    cx = clamp(x, max_x)
+                    cy = clamp(y, max_y)
+                    if cx != x or cy != y:
                         continue
+                    
+                    image = self.tmx.get_tile_image(cx, cy, layer)
+                    if not image: # blank area
+                        continue
+                    img, rect, flags = image
 
-                    srcrect.x, srcrect.y, srcrect.w, srcrect.h = image
+                    srcrect.x, srcrect.y, srcrect.w, srcrect.h = rect
 
                     dstrect.x = x*tw - origin[0]
                     dstrect.y = y*th - origin[1]
                     dstrect.w = tw
                     dstrect.h = th
 
-                    renderer.renderCopy(source, srcrect, dstrect)
+                    rot, flip = rotations[flags]
 
-        NULL = sdl.ffi.NULL
+                    # :type renderer: sdl.Renderer
+                    renderer.renderCopyEx(
+                            source, 
+                            srcrect, 
+                            dstrect,
+                            rot,
+                            None,
+                            flip)
+
 
         # Object coordinates are in pixels.
         for ob in self.tmx.objects:
             if ob.visible and ob.gid:
                 image = self.tmx.get_tile_image_by_gid(ob.gid)
-                # Are object coords the lower left corner?
-                srcrect.x, srcrect.y, srcrect.w, srcrect.h = image
+                if not image: # rotated objects don't show currently
+                    continue
+                srcrect.x, srcrect.y, srcrect.w, srcrect.h = image[1]
                 dstrect.x = int(ob.x) - origin[0]
                 dstrect.y = int(ob.y) - origin[1] -th
                 dstrect.w = tw
@@ -157,3 +171,5 @@ class TMXRender(object):
                                       dstrect,
                                       ob.rotation,
                                       NULL, flip)
+            else:
+                import pdb; pdb.set_trace()
