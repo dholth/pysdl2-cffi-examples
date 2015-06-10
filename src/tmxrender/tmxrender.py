@@ -171,5 +171,3 @@ class TMXRender(object):
                                       dstrect,
                                       ob.rotation,
                                       NULL, flip)
-            else:
-                import pdb; pdb.set_trace()
